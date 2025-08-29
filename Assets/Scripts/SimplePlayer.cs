@@ -1,6 +1,7 @@
-using UnityEngine;
+using System;
 using Unity.Netcode;
 using Unity.Netcode.Components;
+using UnityEngine;
 
 public class SimplePlayer : NetworkBehaviour
 {
@@ -9,20 +10,27 @@ public class SimplePlayer : NetworkBehaviour
     private Rigidbody rb;
     private bool isGrounded = false;
     private LayerMask groundLayer;
+    public float groundCheckDistance = 0.1f;
 
+    public static event Action<Transform> OnLocalPlayerSpawned;
 
     void Start()
     {
-        // GetComponent<NetworkTransform>().AuthorityMode = NetworkTransform.AuthorityModes.Owner;
-
         rb = GetComponent<Rigidbody>();
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody>();
         }
 
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+
         groundLayer = LayerMask.GetMask("Ground");
-       
+
+        if (IsOwner)
+        {
+            OnLocalPlayerSpawned?.Invoke(transform);
+        }
     }
 
     private void Update()
@@ -34,16 +42,30 @@ public class SimplePlayer : NetworkBehaviour
 
         transform.position += new Vector3(x, 0f, y);
 
+        CheckGrounded();
+
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
             Jump();
         }
     }
 
+    private void CheckGrounded()
+    {
+        RaycastHit hit;
+        isGrounded = Physics.Raycast(transform.position, Vector3.down, out hit, groundCheckDistance, groundLayer);
+    }
+
     private void Jump()
     {
         rb.AddForce(Vector3.up * jump, ForceMode.Impulse);
         isGrounded = false;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.down * groundCheckDistance);
     }
 }
 
